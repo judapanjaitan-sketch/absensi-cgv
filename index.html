@@ -234,7 +234,7 @@
   /* ---------- INIT ---------- */
   window.addEventListener('load', function(){
     tick(); setInterval(tick, 1000);
-    segInit('segStatus', function(v){ S.status = v; renderSesiInfo(); updateReason(); cekSiap(); });
+    segInit('segStatus', function(v){ S.status = v; onStatus(); });
     segInit('segTipe', function(v){ setTipe(v); });
     $('site').addEventListener('change', function(){ renderSiteInfo(); updateReason(); cekSiap(); });
     $('luarNama').addEventListener('input', cekSiap);
@@ -289,23 +289,40 @@
         return '<li><span class="j">'+esc(e.jam)+'</span><span class="pill '+(io?'in':'out')+'">'+esc(e.status)+'</span><span>'+esc(e.lokasi)+
           (e.reason ? ' <small style="color:#6b7280">('+esc(e.reason)+')</small>' : '')+'</span></li>';
       }).join('') : '<li style="color:#6b7280">Belum ada absen hari ini.</li>';
-      var next = r.sesiTerbuka ? 'Clock Out' : 'Clock In';
-      S.status = next; segSet('segStatus', next);
-      if (r.sesiTerbuka) {
-        setTipe(r.sesiTerbuka.tipe);
-        if (r.sesiTerbuka.tipe === 'Luar Site') $('luarNama').value = r.sesiTerbuka.lokasi;
-        else { $('site').value = r.sesiTerbuka.lokasi; renderSiteInfo(); }
-      }
-      renderSesiInfo(); updateReason(); cekSiap();
+      // Belum absen hari ini -> Clock In. Sudah aktif di suatu lokasi -> biarkan user memilih
+      // (Clock In = pindah lokasi, Clock Out = selesai kerja hari ini)
+      S.status = r.sesiTerbuka ? '' : 'Clock In';
+      segSet('segStatus', S.status);
+      onStatus();
     }).catch(function(e){ toast(e.message); });
+  }
+
+  function onStatus(){
+    var s = S.sesiTerbuka;
+    if (s && S.status === 'Clock Out') {
+      // Clock Out: lokasi otomatis = lokasi sesi yang sedang aktif
+      setTipe(s.tipe);
+      if (s.tipe === 'Luar Site') $('luarNama').value = s.lokasi;
+      else { $('site').value = s.lokasi; renderSiteInfo(); }
+      S.prefill = true;
+    } else if (S.prefill) {
+      // balik ke Clock In: kosongkan lokasi lama, pilih site terdekat dari GPS
+      S.prefill = false; $('luarNama').value = ''; $('site').value = '';
+      setTipe('Site CGV'); isiSite();
+    }
+    renderSesiInfo(); updateReason(); cekSiap();
   }
 
   function renderSesiInfo(){
     var s = S.sesiTerbuka, el = $('sesiInfo');
     if (!s) { el.innerHTML = ''; return; }
-    el.innerHTML = S.status === 'Clock In'
-      ? '<div class="banner warn">⚠️ Kamu masih <b>Clock In di '+esc(s.lokasi)+'</b> sejak '+esc(s.jam)+'. Sebaiknya <b>Clock Out</b> dulu sebelum Clock In di lokasi baru.</div>'
-      : '<div class="banner ok">Sedang aktif di <b>'+esc(s.lokasi)+'</b> sejak '+esc(s.jam)+'. Siap Clock Out.</div>';
+    var aktif = 'Kamu sedang aktif di <b>'+esc(s.lokasi)+'</b> sejak '+esc(s.jam)+'.';
+    if (S.status === 'Clock In')
+      el.innerHTML = '<div class="banner ok">🔄 <b>Pindah lokasi.</b> '+aktif+' Sesi di '+esc(s.lokasi)+' akan otomatis selesai saat kamu Clock In di lokasi baru.</div>';
+    else if (S.status === 'Clock Out')
+      el.innerHTML = '<div class="banner warn">🏁 <b>Selesai kerja hari ini.</b> '+aktif+' Clock Out akan mengakhiri sesi terakhir. Kalau hanya pindah lokasi, pilih <b>Clock In</b>.</div>';
+    else
+      el.innerHTML = '<div class="banner warn">'+aktif+'<br>• <b>Pindah ke lokasi lain?</b> pilih <b>Clock In</b> di lokasi baru.<br>• <b>Selesai kerja hari ini?</b> pilih <b>Clock Out</b>.</div>';
   }
 
   /* ---------- LOKASI ---------- */
@@ -353,7 +370,7 @@
     }).join('');
     var dekat = list[0];
     if (prev) sel.value = prev;
-    else if (!S.sesiTerbuka && dekat && dekat.d != null && dekat.d <= dekat.radius) sel.value = dekat.nama;
+    else if (dekat && dekat.d != null && dekat.d <= dekat.radius) sel.value = dekat.nama;
 
     if (!sel.value && S.lat != null && dekat && dekat.d != null && dekat.d > dekat.radius) {
       $('siteInfo').innerHTML = '<div class="banner warn">Tidak ada site CGV dalam radius. Terdekat: '+esc(dekat.nama)+' ('+fmtJarak(dekat.d)+'). Pilih <b>Luar Site</b> jika sedang di luar.</div>';
@@ -522,12 +539,13 @@
       '<div><span>Lokasi</span><span>'+esc(r.lokasi)+'</span></div>' +
       '<div><span>Tipe</span><span>'+esc(r.tipe)+'</span></div>' +
       '<div><span>Validasi lokasi</span><span>'+esc(r.validasi === 'Sesuai' ? '✓ Sesuai' : r.validasi)+'</span></div>' +
+      (r.status === 'Clock In' && S.sesiTerbuka ? '<div><span>Sesi sebelumnya</span><span>'+esc(S.sesiTerbuka.lokasi)+' ('+esc(S.sesiTerbuka.jam)+'–'+esc(r.jam)+') selesai otomatis</span></div>' : '') +
       (r.reason ? '<div><span>Reason</span><span>'+esc(r.reason)+'</span></div>' : '') +
       (r.alamat ? '<div><span>Alamat</span><span>'+esc(r.alamat)+'</span></div>' : '');
   }
 
   function resetForm(){
-    S.foto = null; S.kode = ''; S.skorGerak = null;
+    S.foto = null; S.kode = ''; S.skorGerak = null; S.prefill = false; S.sesiTerbuka = null;
     $('preview').style.display = 'none'; $('camTxt').textContent = 'Buka kamera selfie';
     $('catatan').value = ''; $('luarNama').value = ''; $('site').value = ''; $('siteInfo').innerHTML = '';
     $('reason').value = ''; $('detailReason').value = '';
