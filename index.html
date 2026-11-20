@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="theme-color" content="#E71A0F">
 <title>Absensi CGV</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <style>
   :root{--red:#E71A0F;--red-soft:#fff1f0;--dark:#1b1b1f;--bg:#f3f4f6;--card:#fff;--muted:#6b7280;--line:#e5e7eb;--ok:#15803d;--ok-soft:#ecfdf3;--warn:#b45309;--warn-soft:#fffbeb}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -104,6 +106,26 @@
   .ss a{color:var(--red);font-weight:600;text-decoration:none;font-size:12.5px}
   .ss .sub{color:var(--muted);font-size:12.5px}
   .empty{text-align:center;color:var(--muted);padding:30px}
+  /* Peta pergerakan */
+  #map2{height:62vh;min-height:380px;border-radius:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);background:#e5e7eb;z-index:1}
+  .perlbl{flex:1;text-align:center;font-weight:800;font-size:15px;min-width:150px}
+  button.nav{padding:10px 14px;border:1.5px solid var(--line);background:#fff;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer}
+  button.nav.play{border-color:var(--red);color:var(--red)}
+  .lgkey{display:flex;flex-wrap:wrap;gap:12px;font-size:12.5px;color:var(--muted);margin-bottom:10px}
+  .lgkey span{display:flex;align-items:center;gap:5px}
+  .dot{display:inline-block;width:12px;height:12px;border-radius:50%;background:#6b7280;border:2px solid #fff;box-shadow:0 0 0 1px #9ca3af}
+  .dot.luar{border:2px dashed #111;box-shadow:none}
+  .dot.rad{box-shadow:0 0 0 2px var(--red)}
+  .sq{display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(231,26,15,.15);border:1.5px solid var(--red)}
+  .lg{display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer}
+  .lg:last-child{border-bottom:none}
+  .lg.off{opacity:.35}
+  .lg .sw{width:14px;height:14px;border-radius:50%;flex:none}
+  .lg .nm2{flex:1;font-weight:700} .lg .nm2 small{color:var(--muted);font-weight:600}
+  .lg .num{color:var(--muted);font-size:12.5px;text-align:right}
+  .pop{font-size:13px;line-height:1.45;min-width:190px}
+  .pop b{font-size:14px} .pop .mut{color:#6b7280} .pop a{color:var(--red);font-weight:700}
+  .sitelbl{background:#fff;border:1px solid var(--red);color:var(--red);font-weight:700;font-size:11px;padding:1px 5px;border-radius:6px;box-shadow:none}
 </style>
 </head>
 <body>
@@ -229,7 +251,45 @@
       <div class="hint">Hari kerja dihitung 06:00–05:59 (closing lewat tengah malam masuk hari yang sama). <a href="#" class="lnk">Halaman absen</a></div>
     </div>
     <div class="stats" id="admStats"></div>
+    <div class="seg" id="segView" style="margin-bottom:12px">
+      <button type="button" data-v="list" class="on">📋 Daftar</button>
+      <button type="button" data-v="map">🗺️ Peta Pergerakan</button>
+    </div>
     <div id="admList"></div>
+
+    <div id="admMap" class="hide">
+      <div class="card">
+        <label class="t">Tampilkan per</label>
+        <div class="seg" id="segPer">
+          <button type="button" data-v="all" class="on">Semua</button>
+          <button type="button" data-v="day">Harian</button>
+          <button type="button" data-v="week">Mingguan</button>
+          <button type="button" data-v="month">Bulanan</button>
+        </div>
+        <div class="frow hide" id="perNav">
+          <button type="button" class="nav" id="btnPrev">◀</button>
+          <div class="perlbl" id="perLabel"></div>
+          <button type="button" class="nav" id="btnNext">▶</button>
+          <button type="button" class="nav play" id="btnPlay">▶ Putar</button>
+        </div>
+        <div class="frow">
+          <label class="chk"><input type="checkbox" id="mRute" checked> Garis rute harian</label>
+          <label class="chk"><input type="checkbox" id="mSite" checked> Tampilkan site CGV</label>
+        </div>
+        <div class="hint" id="mapInfo"></div>
+      </div>
+      <div id="map2"></div>
+      <div class="card">
+        <label class="t">Keterangan <small>(ketuk nama untuk fokus ke 1 orang)</small></label>
+        <div class="lgkey">
+          <span><i class="dot"></i> Absen di site (sesuai)</span>
+          <span><i class="dot luar"></i> Luar site</span>
+          <span><i class="dot rad"></i> Di luar radius</span>
+          <span><i class="sq"></i> Site CGV + radius</span>
+        </div>
+        <div id="mapLegend"></div>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -253,12 +313,11 @@
 <div class="overlay" id="overlay"><div class="box"><div class="spin"></div><span id="ovTxt">Mengirim absen…</span></div></div>
 <div class="toast" id="toast"></div>
 
+<!-- Link API disimpan di file terpisah: config.js (isi: var API_URL = 'https://script.google.com/.../exec';)
+     Jadi index.html bisa diganti total saat revisi tanpa menempel link lagi. -->
+<script src="config.js"></script>
 <script>
-  /* =====================================================================
-     GANTI LINK DI BAWAH dengan link Web App dari Apps Script kamu
-     (Deploy > Manage deployments > copy "Web app URL", berakhiran /exec)
-     ===================================================================== */
-  var API_URL = 'https://script.google.com/macros/s/AKfycby-DiWEv_dA_ZB7l9ANWpxpJ_hbX6QTROgYrVOowFnSulXZzKRxIBOZT0aAOX_hiJuVqQ/exec';
+  var LINK_API = (typeof API_URL !== 'undefined' && String(API_URL).indexOf('http') === 0) ? String(API_URL) : '';
 
   var INIT = { sites: [], karyawan: [], jabatan: ['AM','CM','SPV'], reasons: [], wajibGps: true, maksAkurasi: 200, toleransiAkurasi: 100 };
   var S = { jabatan:'', status:'', tipe:'Site CGV', lat:null, lng:null, acc:null, alamat:'',
@@ -272,7 +331,7 @@
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
   function api(action, data){
-    return fetch(API_URL, { method:'POST', body: JSON.stringify({ action: action, data: data || {} }) })
+    return fetch(LINK_API, { method:'POST', body: JSON.stringify({ action: action, data: data || {} }) })
       .then(function(r){ return r.json(); })
       .then(function(j){ if (!j.ok) throw new Error(j.error || 'Gagal'); return j.result; });
   }
@@ -300,7 +359,7 @@
   /* ---------- INIT ---------- */
   window.addEventListener('load', function(){
     tick(); setInterval(tick, 1000);
-    if (API_URL.indexOf('http') !== 0) toast('Admin: API_URL di index.html belum diisi.');
+    if (!LINK_API) toast('Admin: file config.js belum ada atau link API di dalamnya salah.');
     route();
   });
   window.addEventListener('hashchange', route);
@@ -333,7 +392,7 @@
     $('btnSubmit').addEventListener('click', kirim);
     $('btnLagi').addEventListener('click', resetForm);
 
-    if (API_URL.indexOf('http') !== 0) return;
+    if (!LINK_API) return;
     api('init').then(onInit).catch(function(e){ toast('Gagal memuat data: ' + e.message); });
     ambilGps();
   }
@@ -699,6 +758,7 @@
       });
       $('fSampai').value = workdayNow(); $('fDari').value = geserTgl(workdayNow(), -6);
       try { ADM.pin = sessionStorage.getItem('absen_admin_pin') || ''; } catch(e) {}
+      initMapControls();
     }
     if (ADM.pin) { $('admLogin').classList.add('hide'); $('admMain').classList.remove('hide'); if (!ADM.events.length) loadHistory(); }
     else { $('admLogin').classList.remove('hide'); $('admMain').classList.add('hide'); }
@@ -776,6 +836,7 @@
       stat(Math.round(tot / 36e5 * 10) / 10, 'Total jam kerja') + stat(sum('lupa'), 'Lupa Clock Out', true) +
       stat(sum('luarRadius'), 'Absen di luar radius', true) + stat(sum('curiga'), 'Foto curiga', true);
 
+    if (MAP.view === 'map') renderMap();
     if (!days.length) { $('admList').innerHTML = '<div class="empty">Tidak ada data untuk filter ini.</div>'; return; }
 
     var byTgl = {}; days.forEach(function(h){ (byTgl[h.tgl] = byTgl[h.tgl] || []).push(h); });
@@ -823,6 +884,204 @@
     return '<div class="pc"><div class="hd"><div class="nm">' + esc(h.nama) + ' <small>' + esc(h.jabatan) + '</small></div>' +
       '<div class="ln">' + badgeStatus(h.status) + ' <span class="badge b-mute">' + fmtDur(h.total) + ' · ' + h.sesi.length + ' lokasi</span></div></div>' +
       (sesi || '<div class="sub">Tidak ada sesi</div>') + '</div>';
+  }
+
+  /* =====================================================================
+     PETA PERGERAKAN — titik absen per orang, per hari / minggu / bulan
+     ===================================================================== */
+  var MAP = { view: 'list', m: null, layer: null, siteLayer: null, per: 'all', idx: -1, keys: [],
+              play: null, warna: {}, fokus: '', sites: null, fitKey: '' };
+  // tanpa merah: merah dipakai untuk site CGV & tanda "di luar radius"
+  var PALET = ['#2563eb','#16a34a','#d97706','#7c3aed','#0891b2','#db2777','#65a30d','#0f766e',
+               '#4f46e5','#a16207','#9333ea','#0284c7','#334155','#c026d3','#15803d','#b45309'];
+  var BULAN_P = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+  function warnaOrang(nama){
+    var k = nama.toLowerCase();
+    if (!MAP.warna[k]) MAP.warna[k] = PALET.at(Object.keys(MAP.warna).length % PALET.length);
+    return MAP.warna[k];
+  }
+  function kunciPeriode(tgl){
+    if (MAP.per === 'day') return tgl;
+    if (MAP.per === 'month') return tgl.slice(0, 7);
+    if (MAP.per === 'week') { var dow = (new Date(Date.parse(tgl)).getUTCDay() + 6) % 7; return geserTgl(tgl, -dow); } // Senin
+    return 'all';
+  }
+  function labelPeriode(k){
+    if (MAP.per === 'day') return hariIndo(k);
+    if (MAP.per === 'month') return BULAN_P.at(Number(k.slice(5, 7)) - 1) + ' ' + k.slice(0, 4);
+    if (MAP.per === 'week') return tglIndo(k) + ' – ' + tglIndo(geserTgl(k, 6));
+    return 'Semua tanggal';
+  }
+
+  function initMapControls(){
+    segInit('segView', function(v){
+      MAP.view = v;
+      $('admList').classList.toggle('hide', v !== 'list');
+      $('admMap').classList.toggle('hide', v !== 'map');
+      if (v === 'map') { muatSites(); renderMap(); }
+      else stopPlay();
+    });
+    segInit('segPer', function(v){ MAP.per = v; MAP.idx = -1; stopPlay(); renderMap(); });
+    $('btnPrev').addEventListener('click', function(){ stopPlay(); geser(-1); });
+    $('btnNext').addEventListener('click', function(){ stopPlay(); geser(1); });
+    $('btnPlay').addEventListener('click', togglePlay);
+    $('mRute').addEventListener('change', renderMap);
+    $('mSite').addEventListener('change', gambarSites);
+  }
+
+  function geser(n){
+    if (!MAP.keys.length) return;
+    MAP.idx = Math.max(0, Math.min(MAP.keys.length - 1, MAP.idx + n));
+    renderMap();
+  }
+  function stopPlay(){ if (MAP.play) { clearInterval(MAP.play); MAP.play = null; } $('btnPlay').textContent = '▶ Putar'; }
+  function togglePlay(){
+    if (MAP.play) { stopPlay(); return; }
+    if (MAP.per === 'all') { MAP.per = 'day'; segSet('segPer', 'day'); }
+    MAP.idx = 0; renderMap();
+    $('btnPlay').textContent = '⏸ Stop';
+    MAP.play = setInterval(function(){
+      if (MAP.idx >= MAP.keys.length - 1) { stopPlay(); return; }
+      MAP.idx++; renderMap();
+    }, 1600);
+  }
+
+  function siapkanPeta(){
+    if (!window.L) { $('mapInfo').textContent = 'Peta gagal dimuat. Periksa koneksi internet lalu muat ulang halaman.'; return false; }
+    if (!MAP.m) {
+      MAP.m = L.map('map2', { zoomControl: true }).setView([-2.5, 118], 5);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19, subdomains: 'abcd',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      }).addTo(MAP.m);
+      MAP.m.createPane('sitePane'); MAP.m.getPane('sitePane').style.zIndex = 350; // site di bawah titik absen
+      MAP.siteLayer = L.layerGroup().addTo(MAP.m);
+      MAP.layer = L.layerGroup().addTo(MAP.m);
+    }
+    setTimeout(function(){ MAP.m.invalidateSize(); }, 50);
+    return true;
+  }
+
+  function muatSites(){
+    if (MAP.sites) return;
+    MAP.sites = [];
+    api('init').then(function(d){ MAP.sites = d.sites || []; gambarSites(); }).catch(function(){});
+  }
+  function gambarSites(){
+    if (!siapkanPeta()) return;
+    MAP.siteLayer.clearLayers();
+    if (!$('mSite').checked) return;
+    (MAP.sites || []).forEach(function(s){
+      if (s.lat == null || s.lng == null) return;
+      L.circle([s.lat, s.lng], { pane: 'sitePane', radius: s.radius, color: '#E71A0F', weight: 1, fillColor: '#E71A0F', fillOpacity: 0.08, interactive: false }).addTo(MAP.siteLayer);
+      L.circleMarker([s.lat, s.lng], { pane: 'sitePane', radius: 4, color: '#E71A0F', weight: 2, fillColor: '#fff', fillOpacity: 1 })
+        .bindTooltip(esc(s.nama), { direction: 'top', className: 'sitelbl', offset: [0, -4] }).addTo(MAP.siteLayer);
+    });
+  }
+
+  /* titik = awal setiap sesi (Clock In) yang punya koordinat GPS */
+  function kumpulkanTitik(){
+    var pts = [];
+    filterHari().forEach(function(h){
+      h.sesi.forEach(function(s, i){
+        var e = s.in, lat = Number(e.lat), lng = Number(e.lng);
+        if (e.lat === '' || e.lat == null || isNaN(lat) || isNaN(lng)) return;
+        pts.push({ lat: lat, lng: lng, nama: h.nama, jabatan: h.jabatan, tgl: h.tgl, ts: e.ts, urut: i + 1, jmlSesi: h.sesi.length,
+                   lokasi: e.lokasi, tipe: e.tipe, validasi: e.validasi, reason: e.reason, detail: e.detail,
+                   dur: s.dur, auto: s.auto, foto: e.foto, akurasi: e.akurasi });
+      });
+    });
+    return pts;
+  }
+
+  function renderMap(){
+    if (MAP.view !== 'map' || !siapkanPeta()) return;
+    var semua = kumpulkanTitik();
+
+    // daftar periode yang ada datanya
+    var ks = {}; semua.forEach(function(p){ ks[kunciPeriode(p.tgl)] = 1; });
+    MAP.keys = Object.keys(ks).sort();
+    if (MAP.per === 'all') MAP.keys = ['all'];
+    if (MAP.idx < 0 || MAP.idx >= MAP.keys.length) MAP.idx = MAP.keys.length - 1; // default: periode terbaru
+    var kunci = MAP.keys.at(MAP.idx);
+    $('perNav').classList.toggle('hide', MAP.per === 'all');
+    $('perLabel').textContent = kunci ? labelPeriode(kunci) + '  (' + (MAP.idx + 1) + '/' + MAP.keys.length + ')' : '–';
+    $('btnPrev').disabled = MAP.idx <= 0; $('btnNext').disabled = MAP.idx >= MAP.keys.length - 1;
+
+    var pts = semua.filter(function(p){ return MAP.per === 'all' || kunciPeriode(p.tgl) === kunci; });
+    var tampil = pts.filter(function(p){ return !MAP.fokus || p.nama.toLowerCase() === MAP.fokus; });
+
+    MAP.layer.clearLayers();
+
+    // garis rute: per orang per hari, urut jam
+    if ($('mRute').checked) {
+      var rute = {};
+      tampil.forEach(function(p){ var k = p.nama.toLowerCase() + '|' + p.tgl; (rute[k] = rute[k] || []).push(p); });
+      Object.keys(rute).forEach(function(k){
+        var r = rute[k].sort(function(a, b){ return a.ts < b.ts ? -1 : 1; });
+        if (r.length < 2) return;
+        L.polyline(r.map(function(p){ return [p.lat, p.lng]; }), { color: warnaOrang(r[0].nama), weight: 3, opacity: 0.55, dashArray: '6 6' }).addTo(MAP.layer);
+      });
+    }
+
+    // titik absen
+    tampil.forEach(function(p){
+      var luarRad = p.validasi.indexOf('Di luar radius') === 0, luar = p.tipe === 'Luar Site';
+      var mk = L.circleMarker([p.lat, p.lng], {
+        radius: 8, fillColor: warnaOrang(p.nama), fillOpacity: 0.9,
+        color: luarRad ? '#E71A0F' : (luar ? '#111' : '#fff'), weight: luarRad ? 3 : 2, dashArray: luar ? '3 3' : null
+      });
+      var ms = Date.parse(p.ts);
+      mk.bindPopup('<div class="pop"><b>' + esc(p.nama) + '</b> <span class="mut">' + esc(p.jabatan) + '</span><br>' +
+        esc(hariIndo(p.tgl)) + ', ' + jamJkt(ms) + ' WIB<br>' +
+        '<b>' + esc(p.lokasi) + '</b>' + (luar ? ' <span class="mut">(luar site)</span>' : '') + '<br>' +
+        'Lokasi ke-' + p.urut + ' dari ' + p.jmlSesi + ' hari itu · ' + (p.auto ? 'lupa Clock Out' : fmtDur(p.dur)) + '<br>' +
+        'Validasi: ' + esc(p.validasi || '-') + (p.akurasi !== '' && p.akurasi != null ? ' · GPS ±' + esc(p.akurasi) + ' m' : '') +
+        (p.reason ? '<br>Reason: ' + esc(p.reason) + (p.detail ? ' – ' + esc(p.detail) : '') : '') +
+        (p.foto ? '<br><a href="' + esc(p.foto) + '" target="_blank" rel="noopener">Lihat foto</a>' : '') + '</div>');
+      mk.addTo(MAP.layer);
+    });
+
+    // ringkasan + zoom
+    var orang = {}, lok = {};
+    tampil.forEach(function(p){ orang[p.nama.toLowerCase()] = 1; lok[p.lokasi] = 1; });
+    $('mapInfo').textContent = tampil.length
+      ? tampil.length + ' titik absen · ' + Object.keys(orang).length + ' orang · ' + Object.keys(lok).length + ' lokasi berbeda. Ketuk titik untuk detail.'
+      :'Tidak ada titik absen dengan GPS untuk periode / filter ini.';
+    var fk = MAP.per + '|' + kunci + '|' + MAP.fokus + '|' + tampil.length;
+    if (tampil.length && fk !== MAP.fitKey) {
+      MAP.fitKey = fk;
+      MAP.m.fitBounds(L.latLngBounds(tampil.map(function(p){ return [p.lat, p.lng]; })), { padding: [40, 40], maxZoom: 16 });
+    }
+
+    renderLegend(pts);
+  }
+
+  function renderLegend(pts){
+    var per = {};
+    pts.forEach(function(p){
+      var k = p.nama.toLowerCase();
+      if (!per[k]) per[k] = { nama: p.nama, jabatan: p.jabatan, n: 0, lok: {}, hari: {}, ms: 0 };
+      per[k].n++; per[k].lok[p.lokasi] = 1; per[k].hari[p.tgl] = 1; per[k].ms += p.dur;
+    });
+    var list = Object.keys(per).map(function(k){ return per[k]; }).sort(function(a, b){ return b.n - a.n; });
+    if (!list.length) { $('mapLegend').innerHTML = '<div class="hint">Belum ada data.</div>'; return; }
+    $('mapLegend').innerHTML = (MAP.fokus ? '<div class="hint" style="margin:0 0 6px">Fokus 1 orang — ketuk namanya lagi untuk menampilkan semua.</div>' : '') +
+      list.map(function(o){
+        var k = o.nama.toLowerCase();
+        return '<div class="lg' + (MAP.fokus && MAP.fokus !== k ? ' off' : '') + '" data-k="' + esc(k) + '">' +
+          '<span class="sw" style="background:' + warnaOrang(o.nama) + '"></span>' +
+          '<span class="nm2">' + esc(o.nama) + ' <small>' + esc(o.jabatan) + '</small></span>' +
+          '<span class="num">' + o.n + ' titik · ' + Object.keys(o.lok).length + ' lokasi<br>' +
+          Object.keys(o.hari).length + ' hari · ' + fmtDur(o.ms) + '</span></div>';
+      }).join('');
+    Array.prototype.forEach.call($('mapLegend').querySelectorAll('.lg'), function(el){
+      el.addEventListener('click', function(){
+        var k = el.getAttribute('data-k');
+        MAP.fokus = MAP.fokus === k ? '' : k; renderMap();
+      });
+    });
   }
 
   function unduhCsv(){
