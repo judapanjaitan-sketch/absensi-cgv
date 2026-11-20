@@ -687,7 +687,7 @@
     if (kurang().length) return;
     var perlu = butuhReason();
     var p = {
-      nama: $('nama').value.trim(), jabatan: S.jabatan, status: S.status, tipeLokasi: S.tipe,
+      nama: $('nama').value.trim().replace(/[\s.,;:'"-]+$/, ''), jabatan: S.jabatan, status: S.status, tipeLokasi: S.tipe,
       namaLokasi: S.tipe === 'Site CGV' ? $('site').value : $('luarNama').value.trim(),
       lat: S.lat, lng: S.lng, akurasi: S.acc, catatan: $('catatan').value.trim(),
       reason: perlu ? $('reason').value : '', detailReason: perlu ? $('detailReason').value.trim() : '',
@@ -734,6 +734,8 @@
   var BULAN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
   var HARI = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
 
+  /* kunci nama: huruf kecil, spasi rapi, tanpa tanda baca di ujung ("Ahmad." = "Ahmad") */
+  function kunciNama(n){ return String(n || '').toLowerCase().replace(/\s+/g, ' ').replace(/^[\s.,;:'"-]+|[\s.,;:'"-]+$/g, ''); }
   function tglJkt(ms){ return new Date(ms + 7 * 3600e3).toISOString().slice(0, 10); }
   function jamJkt(ms){ return new Date(ms + 7 * 3600e3).toISOString().slice(11, 16); }
   function workdayNow(){ return tglJkt(Date.now() - BATAS_HARI_JAM * 3600e3); }
@@ -789,7 +791,7 @@
   function susunHari(events){
     var g = {}, urut = [];
     events.forEach(function(e){
-      var k = e.workday + '|' + e.nama.toLowerCase().replace(/\s+/g, ' ');
+      var k = e.workday + '|' + kunciNama(e.nama);
       if (!g[k]) { g[k] = { tgl: e.workday, nama: e.nama, jabatan: e.jabatan, ev: [] }; urut.push(k); }
       if (e.jabatan) g[k].jabatan = e.jabatan;
       g[k].ev.push(e);
@@ -827,7 +829,7 @@
 
   function renderAdmin(){
     var days = filterHari();
-    var orang = {}; days.forEach(function(h){ orang[h.nama.toLowerCase()] = 1; });
+    var orang = {}; days.forEach(function(h){ orang[kunciNama(h.nama)] = 1; });
     var tot = days.reduce(function(a, h){ return a + h.total; }, 0);
     var sum = function(f){ return days.reduce(function(a, h){ return a + h[f]; }, 0); };
     var stat = function(v, l, bad){ return '<div class="stat'+(bad && v ? ' bad' : '')+'"><b>'+v+'</b><span>'+l+'</span></div>'; };
@@ -897,7 +899,7 @@
   var BULAN_P = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
   function warnaOrang(nama){
-    var k = nama.toLowerCase();
+    var k = kunciNama(nama);
     if (!MAP.warna[k]) MAP.warna[k] = PALET.at(Object.keys(MAP.warna).length % PALET.length);
     return MAP.warna[k];
   }
@@ -951,9 +953,9 @@
     if (!window.L) { $('mapInfo').textContent = 'Peta gagal dimuat. Periksa koneksi internet lalu muat ulang halaman.'; return false; }
     if (!MAP.m) {
       MAP.m = L.map('map2', { zoomControl: true }).setView([-2.5, 118], 5);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19, subdomains: 'abcd',
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       }).addTo(MAP.m);
       MAP.m.createPane('sitePane'); MAP.m.getPane('sitePane').style.zIndex = 350; // site di bawah titik absen
       MAP.siteLayer = L.layerGroup().addTo(MAP.m);
@@ -1010,14 +1012,14 @@
     $('btnPrev').disabled = MAP.idx <= 0; $('btnNext').disabled = MAP.idx >= MAP.keys.length - 1;
 
     var pts = semua.filter(function(p){ return MAP.per === 'all' || kunciPeriode(p.tgl) === kunci; });
-    var tampil = pts.filter(function(p){ return !MAP.fokus || p.nama.toLowerCase() === MAP.fokus; });
+    var tampil = pts.filter(function(p){ return !MAP.fokus || kunciNama(p.nama) === MAP.fokus; });
 
     MAP.layer.clearLayers();
 
     // garis rute: per orang per hari, urut jam
     if ($('mRute').checked) {
       var rute = {};
-      tampil.forEach(function(p){ var k = p.nama.toLowerCase() + '|' + p.tgl; (rute[k] = rute[k] || []).push(p); });
+      tampil.forEach(function(p){ var k = kunciNama(p.nama) + '|' + p.tgl; (rute[k] = rute[k] || []).push(p); });
       Object.keys(rute).forEach(function(k){
         var r = rute[k].sort(function(a, b){ return a.ts < b.ts ? -1 : 1; });
         if (r.length < 2) return;
@@ -1045,7 +1047,7 @@
 
     // ringkasan + zoom
     var orang = {}, lok = {};
-    tampil.forEach(function(p){ orang[p.nama.toLowerCase()] = 1; lok[p.lokasi] = 1; });
+    tampil.forEach(function(p){ orang[kunciNama(p.nama)] = 1; lok[p.lokasi] = 1; });
     $('mapInfo').textContent = tampil.length
       ? tampil.length + ' titik absen · ' + Object.keys(orang).length + ' orang · ' + Object.keys(lok).length + ' lokasi berbeda. Ketuk titik untuk detail.'
       :'Tidak ada titik absen dengan GPS untuk periode / filter ini.';
@@ -1061,7 +1063,7 @@
   function renderLegend(pts){
     var per = {};
     pts.forEach(function(p){
-      var k = p.nama.toLowerCase();
+      var k = kunciNama(p.nama);
       if (!per[k]) per[k] = { nama: p.nama, jabatan: p.jabatan, n: 0, lok: {}, hari: {}, ms: 0 };
       per[k].n++; per[k].lok[p.lokasi] = 1; per[k].hari[p.tgl] = 1; per[k].ms += p.dur;
     });
@@ -1069,7 +1071,7 @@
     if (!list.length) { $('mapLegend').innerHTML = '<div class="hint">Belum ada data.</div>'; return; }
     $('mapLegend').innerHTML = (MAP.fokus ? '<div class="hint" style="margin:0 0 6px">Fokus 1 orang — ketuk namanya lagi untuk menampilkan semua.</div>' : '') +
       list.map(function(o){
-        var k = o.nama.toLowerCase();
+        var k = kunciNama(o.nama);
         return '<div class="lg' + (MAP.fokus && MAP.fokus !== k ? ' off' : '') + '" data-k="' + esc(k) + '">' +
           '<span class="sw" style="background:' + warnaOrang(o.nama) + '"></span>' +
           '<span class="nm2">' + esc(o.nama) + ' <small>' + esc(o.jabatan) + '</small></span>' +
@@ -1086,8 +1088,8 @@
 
   function unduhCsv(){
     var days = filterHari(), nm = {};
-    days.forEach(function(h){ nm[h.tgl + '|' + h.nama.toLowerCase()] = 1; });
-    var ev = ADM.events.filter(function(e){ return nm[e.workday + '|' + e.nama.toLowerCase()]; });
+    days.forEach(function(h){ nm[h.tgl + '|' + kunciNama(h.nama)] = 1; });
+    var ev = ADM.events.filter(function(e){ return nm[e.workday + '|' + kunciNama(e.nama)]; });
     if (!ev.length) { toast('Tidak ada data untuk diunduh.'); return; }
     var kol = ['workday','ts','nama','jabatan','status','tipe','lokasi','validasi','jarak','akurasi','alamat','maps','reason','detail','catatan','foto','kode','tantangan','skor','cek'];
     var head = ['Hari Kerja','Waktu (WIB)','Nama','Jabatan','Status','Tipe Lokasi','Lokasi','Validasi','Jarak Site Terdekat (m)','Akurasi GPS (m)','Alamat','Link Maps','Reason','Detail Reason','Catatan','Foto','Kode','Tantangan','Skor Gerak','Cek Foto'];
